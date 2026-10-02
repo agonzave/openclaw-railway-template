@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Apagar Servicio (8:00 PM COT)
-        if: github.event.schedule == '0 1 * * *'
+        if: github.event.schedule == '0 1 * * *' || github.event_name == 'workflow_dispatch'
         run: |
           curl -s -X POST "https://backboard.railway.com/graphql/v2" \
             -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
