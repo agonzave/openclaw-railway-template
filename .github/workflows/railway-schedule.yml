@@ -21,7 +21,6 @@ jobs:
   manage-service:
     runs-on: ubuntu-latest
     env:
-      # PAT (token de cuenta/workspace): NO definir RAILWAY_TOKEN
       RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
       PROJECT_ID: "decec1f6-4ccb-4158-938f-a90a8053646f"
       SERVICE_ID: "ef6b5897-c616-48ee-be1f-f0d77d9c3e12"
@@ -29,6 +28,24 @@ jobs:
     steps:
       - name: Instalar Railway CLI
         run: npm install -g @railway/cli
+
+      # --- DIAGNÓSTICO TEMPORAL (borrar cuando funcione) ---
+      - name: Diagnóstico del token
+        run: |
+          echo "Longitud del token: ${#RAILWAY_API_TOKEN}"
+          echo "--- Prueba como token de cuenta (me) ---"
+          curl -s -o /dev/stderr -w "HTTP %{http_code}\n" \
+            -H "Authorization: Bearer $RAILWAY_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"query":"{ me { name } }"}' \
+            https://backboard.railway.com/graphql/v2
+          echo "--- Prueba acceso al proyecto ---"
+          curl -s -o /dev/stderr -w "HTTP %{http_code}\n" \
+            -H "Authorization: Bearer $RAILWAY_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\":\"{ project(id: \\\"$PROJECT_ID\\\") { name } }\"}" \
+            https://backboard.railway.com/graphql/v2
+      # --- FIN DIAGNÓSTICO ---
 
       - name: Enlazar proyecto
         run: railway link --project "$PROJECT_ID" --environment "$ENV_ID" --service "$SERVICE_ID"
