@@ -25,35 +25,54 @@ jobs:
       PROJECT_ID: "decec1f6-4ccb-4158-938f-a90a8053646f"
       SERVICE_ID: "ef6b5897-c616-48ee-be1f-f0d77d9c3e12"
       ENV_ID: "59722f34-6a1f-4904-a008-cd7465552df5"
+      ACTION: ${{ github.event.schedule == '7 1 * * *' && 'down' || (github.event.schedule == '13 13 * * *' && 'redeploy' || github.event.inputs.action) }}
     steps:
-      - name: Instalar Railway CLI
-        run: npm install -g @railway/cli
-
-      # --- DIAGNÓSTICO TEMPORAL (borrar cuando funcione) ---
-      - name: Diagnóstico del token
+      - name: Ejecutar acción en Railway (${{ env.ACTION }})
         run: |
-          echo "Longitud del token: ${#RAILWAY_API_TOKEN}"
-          echo "--- Prueba como token de cuenta (me) ---"
-          curl -s -o /dev/stderr -w "HTTP %{http_code}\n" \
-            -H "Authorization: Bearer $RAILWAY_API_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d '{"query":"{ me { name } }"}' \
-            https://backboard.railway.com/graphql/v2
-          echo "--- Prueba acceso al proyecto ---"
-          curl -s -o /dev/stderr -w "HTTP %{http_code}\n" \
-            -H "Authorization: Bearer $RAILWAY_API_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "{\"query\":\"{ project(id: \\\"$PROJECT_ID\\\") { name } }\"}" \
-            https://backboard.railway.com/graphql/v2
-      # --- FIN DIAGNÓSTICO ---
+          set -euo pipefail
+          API="https://backboard.railway.com/graphql/v2"
 
-      - name: Enlazar proyecto
-        run: railway link --project "$PROJECT_ID" --environment "$ENV_ID" --service "$SERVICE_ID"
+          api() {
+            curl -sS \
+              -H "Authorization: Bearer $RAILWAY_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "$1" "$API"
+          }
 
-      - name: Apagar Servicio (8:00 PM COT / Manual)
-        if: github.event.schedule == '7 1 * * *' || github.event.inputs.action == 'down'
-        run: railway down --service "$SERVICE_ID" -y
+          check() {
+            if echo "$1" | jq -e '.errors != null' >/dev/null; then
+              echo "Error de la API: $1"
+              exit 1
+            fi
+          }
 
-      - name: Encender Servicio (8:00 AM COT / Manual)
-        if: github.event.schedule == '13 13 * * *' || github.event.inputs.action == 'redeploy'
-        run: railway redeploy --service "$SERVICE_ID" -y
+          echo "Acción: $ACTION"
+
+          if [ "$ACTION" = "down" ]; then
+            # 1) Buscar el último despliegue del servicio
+            RESP=$(api "$(jq -n \
+              --arg p "$PROJECT_ID" --arg e "$ENV_ID" --arg s "$SERVICE_ID" \
+              '{query: "query($input: DeploymentListInput!) { deployments(first: 1, input: $input) { edges { node { id status } } } }",
+                variables: {input: {projectId: $p, environmentId: $e, serviceId: $s}}}')")
+            check "$RESP"
+            DEP_ID=$(echo "$RESP" | jq -r '.data.deployments.edges[0].node.id // empty')
+            STATUS=$(echo "$RESP" | jq -r '.data.deployments.edges[0].node.status // empty')
+            echo "Último despliegue: $DEP_ID (estado: $STATUS)"
+            if [ -z "$DEP_ID" ]; then
+              echo "No se encontró ningún despliegue"
+              exit 1
+            fi
+
+            # 2) Detenerlo
+            RESP=$(api "$(jq -n --arg id "$DEP_ID" \
+              '{query: "mutation($id: String!) { deploymentStop(id: $id) }", variables: {id: $id}}')")
+            check "$RESP"
+            echo "Servicio apagado: $RESP"
+
+          else
+            RESP=$(api "$(jq -n --arg e "$ENV_ID" --arg s "$SERVICE_ID" \
+              '{query: "mutation($e: String!, $s: String!) { serviceInstanceRedeploy(environmentId: $e, serviceId: $s) }",
+                variables: {e: $e, s: $s}}')")
+            check "$RESP"
+            echo "Servicio encendido: $RESP"
+          fi
