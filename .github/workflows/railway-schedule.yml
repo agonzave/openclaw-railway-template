@@ -6,7 +6,16 @@ on:
     - cron: '0 1 * * *'
     # 8:00 AM COT (01:00 PM UTC) - Encender Servicio
     - cron: '0 13 * * *'
-  workflow_dispatch: # Permite probar la ejecucion manualmente desde GitHub Actions
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Acción a ejecutar'
+        required: true
+        default: 'down'
+        type: choice
+        options:
+          - down
+          - redeploy
 
 jobs:
   manage-service:
@@ -15,8 +24,8 @@ jobs:
       - name: Instalar Railway CLI
         run: npm install -g @railway/cli
 
-      - name: Apagar Servicio (8:00 PM COT)
-        if: github.event.schedule == '0 1 * * *' || github.event_name == 'workflow_dispatch'
+      - name: Apagar Servicio (8:00 PM COT / Manual)
+        if: github.event.schedule == '0 1 * * *' || github.event.inputs.action == 'down'
         run: railway down --project=$PROJECT_ID --service=$SERVICE_ID --environment=$ENV_ID -y
         env:
           RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
@@ -24,8 +33,8 @@ jobs:
           SERVICE_ID: "ef6b5897-c616-48ee-be1f-f0d77d9c3e12"
           ENV_ID: "59722f34-6a1f-4904-a008-cd7465552df5"
 
-      - name: Encender Servicio (8:00 AM COT)
-        if: github.event.schedule == '0 13 * * *'
+      - name: Encender Servicio (8:00 AM COT / Manual)
+        if: github.event.schedule == '0 13 * * *' || github.event.inputs.action == 'redeploy'
         run: railway redeploy --project=$PROJECT_ID --service=$SERVICE_ID --environment=$ENV_ID -y
         env:
           RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
