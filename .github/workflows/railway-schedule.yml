@@ -35,7 +35,7 @@ jobs:
 
       - name: Encender Servicio (8:00 AM COT / Manual)
         if: github.event.schedule == '0 13 * * *' || github.event.inputs.action == 'redeploy'
-        run: railway redeploy --project=$PROJECT_ID --service=$SERVICE_ID --environment=$ENV_ID -y
+        run: railway redeploy --project=$PROJECT_ID --service=$SERVICE_ID --environment=$ENV_ID -y || true
         env:
           RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           PROJECT_ID: "decec1f6-4ccb-4158-938f-a90a8053646f"
