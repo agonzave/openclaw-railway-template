@@ -18,7 +18,7 @@ jobs:
           RESPONSE=$(curl -X POST "https://backboard.railway.com/graphql/v2" \
             -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
             -H "Content-Type: application/json" \
-            -d '{"query": "mutation { serviceInstanceUpdate(serviceId: \"ef6b5897-c616-48ee-be1f-f0d77d9c3e12\", environmentId: \"59722f34-6a1f-4904-a008-cd7465552df5\", input: { numReplicas: 0 }) }"}')
+            -d '{"query": "mutation { serviceInstanceAppScaleUpdate(serviceId: \"ef6b5897-c616-48ee-be1f-f0d77d9c3e12\", environmentId: \"59722f34-6a1f-4904-a008-cd7465552df5\", numReplicas: 0) }"}')
           echo "Respuesta de Railway: $RESPONSE"
 
       - name: Encender Servicio (8:00 AM COT)
@@ -27,5 +27,5 @@ jobs:
           RESPONSE=$(curl -X POST "https://backboard.railway.com/graphql/v2" \
             -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
             -H "Content-Type: application/json" \
-            -d '{"query": "mutation { serviceInstanceRedeploy(serviceId: \"ef6b5897-c616-48ee-be1f-f0d77d9c3e12\", environmentId: \"59722f34-6a1f-4904-a008-cd7465552df5\") }"}')
+            -d '{"query": "mutation { serviceInstanceAppScaleUpdate(serviceId: \"ef6b5897-c616-48ee-be1f-f0d77d9c3e12\", environmentId: \"59722f34-6a1f-4904-a008-cd7465552df5\", numReplicas: 1) }"}')
           echo "Respuesta de Railway: $RESPONSE"
