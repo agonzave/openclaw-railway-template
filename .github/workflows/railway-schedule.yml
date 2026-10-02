@@ -19,7 +19,7 @@ jobs:
         if: github.event.schedule == '0 1 * * *' || github.event_name == 'workflow_dispatch'
         run: railway down --service=$SERVICE_ID --environment=$ENV_ID -y
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           SERVICE_ID: "ef6b5897-c616-48ee-be1f-f0d77d9c3e12"
           ENV_ID: "59722f34-6a1f-4904-a008-cd7465552df5"
 
@@ -27,6 +27,6 @@ jobs:
         if: github.event.schedule == '0 13 * * *'
         run: railway redeploy --service=$SERVICE_ID --environment=$ENV_ID -y
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           SERVICE_ID: "ef6b5897-c616-48ee-be1f-f0d77d9c3e12"
           ENV_ID: "59722f34-6a1f-4904-a008-cd7465552df5"
