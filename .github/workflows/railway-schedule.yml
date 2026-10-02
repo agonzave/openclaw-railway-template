@@ -3,9 +3,9 @@ name: Railway Nightly Schedule
 on:
   schedule:
     # 8:00 PM COT (01:00 AM UTC) - Apagar Servicio
-    - cron: '0 1 * * *'
+    - cron: '7 1 * * *'
     # 8:00 AM COT (01:00 PM UTC) - Encender Servicio
-    - cron: '0 13 * * *'
+    - cron: '13 13 * * *'
   workflow_dispatch:
     inputs:
       action:
@@ -20,24 +20,23 @@ on:
 jobs:
   manage-service:
     runs-on: ubuntu-latest
+    env:
+      # PAT (token de cuenta/workspace): NO definir RAILWAY_TOKEN
+      RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+      PROJECT_ID: "decec1f6-4ccb-4158-938f-a90a8053646f"
+      SERVICE_ID: "ef6b5897-c616-48ee-be1f-f0d77d9c3e12"
+      ENV_ID: "59722f34-6a1f-4904-a008-cd7465552df5"
     steps:
       - name: Instalar Railway CLI
         run: npm install -g @railway/cli
 
+      - name: Enlazar proyecto
+        run: railway link --project "$PROJECT_ID" --environment "$ENV_ID" --service "$SERVICE_ID"
+
       - name: Apagar Servicio (8:00 PM COT / Manual)
-        if: github.event.schedule == '0 1 * * *' || github.event.inputs.action == 'down'
-        run: railway down --project=$PROJECT_ID --service=$SERVICE_ID --environment=$ENV_ID -y
-        env:
-          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          PROJECT_ID: "decec1f6-4ccb-4158-938f-a90a8053646f"
-          SERVICE_ID: "ef6b5897-c616-48ee-be1f-f0d77d9c3e12"
-          ENV_ID: "59722f34-6a1f-4904-a008-cd7465552df5"
+        if: github.event.schedule == '7 1 * * *' || github.event.inputs.action == 'down'
+        run: railway down --service "$SERVICE_ID" -y
 
       - name: Encender Servicio (8:00 AM COT / Manual)
-        if: github.event.schedule == '0 13 * * *' || github.event.inputs.action == 'redeploy'
-        run: railway redeploy --project=$PROJECT_ID --service=$SERVICE_ID --environment=$ENV_ID -y || true
-        env:
-          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          PROJECT_ID: "decec1f6-4ccb-4158-938f-a90a8053646f"
-          SERVICE_ID: "ef6b5897-c616-48ee-be1f-f0d77d9c3e12"
-          ENV_ID: "59722f34-6a1f-4904-a008-cd7465552df5"
+        if: github.event.schedule == '13 13 * * *' || github.event.inputs.action == 'redeploy'
+        run: railway redeploy --service "$SERVICE_ID" -y
