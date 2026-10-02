@@ -2,36 +2,26 @@ name: Railway Nightly Schedule
 
 on:
   schedule:
-    # 11:00 PM COT (04:00 AM UTC) - Apagar
-    - cron: '0 4 * * *'
-    # 07:00 AM COT (12:00 PM UTC) - Encender
-    - cron: '0 12 * * *'
-  workflow_dispatch: # Permite probarlo manualmente desde GitHub Actions
+    # 8:00 PM COT (01:00 AM UTC) - Apagar Servicio
+    - cron: '0 1 * * *'
+    # 8:00 AM COT (01:00 PM UTC) - Encender Servicio
+    - cron: '0 13 * * *'
+  workflow_dispatch: # Permite probar la ejecucion manualmente desde GitHub Actions
 
 jobs:
   manage-service:
     runs-on: ubuntu-latest
     steps:
-      - name: Obtener ID del servicio en Railway
-        id: railway_info
-        run: |
-          # Consulta la API de Railway usando el token guardado
-          RESPONSE=$(curl -s -X POST "https://backboard.railway.com/graphql/v2" \
-            -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d '{"query": "query { me { projects { edges { node { id services { edges { node { id name } } } environments { edges { node { id name } } } } } } } }"}')
-          echo "Railway response fetched successfully."
-
-      - name: Apagar Servicio (11:00 PM COT)
-        if: github.event.schedule == '0 4 * * *'
+      - name: Apagar Servicio (8:00 PM COT)
+        if: github.event.schedule == '0 1 * * *'
         run: |
           curl -s -X POST "https://backboard.railway.com/graphql/v2" \
             -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
             -H "Content-Type: application/json" \
             -d '{"query": "mutation { serviceInstanceStop(serviceId: \"ef6b5897-c616-48ee-be1f-f0d77d9c3e12\", environmentId: \"59722f34-6a1f-4904-a008-cd7465552df5\") }"}'
 
-      - name: Encender Servicio (07:00 AM COT)
-        if: github.event.schedule == '0 12 * * *'
+      - name: Encender Servicio (8:00 AM COT)
+        if: github.event.schedule == '0 13 * * *'
         run: |
           curl -s -X POST "https://backboard.railway.com/graphql/v2" \
             -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
