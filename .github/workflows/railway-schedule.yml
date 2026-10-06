@@ -2,10 +2,10 @@ name: Railway Nightly Schedule
 
 on:
   schedule:
-    # 8:00 PM COT (01:00 AM UTC) - Apagar Servicio
-    - cron: '7 1 * * *'
-    # 8:00 AM COT (01:00 PM UTC) - Encender Servicio
-    - cron: '13 13 * * *'
+    # Miércoles 7:00 AM COT (12:00 UTC) - Encender Servicio
+    - cron: '3 12 * * 3'
+    # Miércoles 5:00 PM COT (22:00 UTC) - Apagar Servicio
+    - cron: '3 22 * * 3'
   workflow_dispatch:
     inputs:
       action:
@@ -25,7 +25,7 @@ jobs:
       PROJECT_ID: "decec1f6-4ccb-4158-938f-a90a8053646f"
       SERVICE_ID: "ef6b5897-c616-48ee-be1f-f0d77d9c3e12"
       ENV_ID: "59722f34-6a1f-4904-a008-cd7465552df5"
-      ACTION: ${{ github.event.schedule == '7 1 * * *' && 'down' || (github.event.schedule == '13 13 * * *' && 'redeploy' || github.event.inputs.action) }}
+      ACTION: ${{ github.event.schedule == '3 22 * * 3' && 'down' || (github.event.schedule == '3 12 * * 3' && 'redeploy' || github.event.inputs.action) }}
     steps:
       - name: Ejecutar acción en Railway (${{ env.ACTION }})
         run: |
