@@ -39,8 +39,10 @@ jobs:
               -d "$1" "$API"
           }
 
+          has_errors() { echo "$1" | jq -e '.errors != null' >/dev/null; }
+
           check() {
-            if echo "$1" | jq -e '.errors != null' >/dev/null; then
+            if has_errors "$1"; then
               echo "Error de la API: $1"
               exit 1
             fi
@@ -49,25 +51,54 @@ jobs:
           echo "Acción: $ACTION"
 
           if [ "$ACTION" = "down" ]; then
-            # 1) Buscar el último despliegue del servicio
+            # 1) Listar los últimos despliegues del servicio
             RESP=$(api "$(jq -n \
               --arg p "$PROJECT_ID" --arg e "$ENV_ID" --arg s "$SERVICE_ID" \
-              '{query: "query($input: DeploymentListInput!) { deployments(first: 1, input: $input) { edges { node { id status } } } }",
+              '{query: "query($input: DeploymentListInput!) { deployments(first: 5, input: $input) { edges { node { id status } } } }",
                 variables: {input: {projectId: $p, environmentId: $e, serviceId: $s}}}')")
             check "$RESP"
-            DEP_ID=$(echo "$RESP" | jq -r '.data.deployments.edges[0].node.id // empty')
-            STATUS=$(echo "$RESP" | jq -r '.data.deployments.edges[0].node.status // empty')
-            echo "Último despliegue: $DEP_ID (estado: $STATUS)"
-            if [ -z "$DEP_ID" ]; then
+
+            LIST=$(echo "$RESP" | jq -r '.data.deployments.edges[].node | "\(.id) \(.status)"')
+            echo "Últimos despliegues:"
+            echo "$LIST"
+
+            if [ -z "$LIST" ]; then
               echo "No se encontró ningún despliegue"
               exit 1
             fi
 
-            # 2) Detenerlo
-            RESP=$(api "$(jq -n --arg id "$DEP_ID" \
-              '{query: "mutation($id: String!) { deploymentStop(id: $id) }", variables: {id: $id}}')")
-            check "$RESP"
-            echo "Servicio apagado: $RESP"
+            ATTEMPTED=0
+            FAILED=0
+
+            # 2) Eliminar (equivale a `railway down`) los despliegues activos o en progreso
+            while read -r ID ST; do
+              [ -z "$ID" ] && continue
+              case "$ST" in
+                SUCCESS|INITIALIZING|BUILDING|DEPLOYING|QUEUED|WAITING)
+                  ;;
+                *)
+                  echo "Omitido $ID (estado: $ST)"
+                  continue ;;
+              esac
+
+              ATTEMPTED=$((ATTEMPTED + 1))
+              R=$(api "$(jq -n --arg id "$ID" \
+                '{query: "mutation($id: String!) { deploymentRemove(id: $id) }", variables: {id: $id}}')")
+              if has_errors "$R"; then
+                echo "Falló deploymentRemove en $ID ($ST): $R"
+                FAILED=$((FAILED + 1))
+              else
+                echo "deploymentRemove OK en $ID ($ST)"
+              fi
+            done <<< "$LIST"
+
+            if [ "$ATTEMPTED" -eq 0 ]; then
+              echo "No hay despliegues activos: el servicio ya está apagado"
+            elif [ "$FAILED" -eq "$ATTEMPTED" ]; then
+              echo "No se pudo apagar ningún despliegue"
+              exit 1
+            fi
+            echo "Servicio apagado"
 
           else
             RESP=$(api "$(jq -n --arg e "$ENV_ID" --arg s "$SERVICE_ID" \
