@@ -8,29 +8,13 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
-      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-      PROJECT_ID: "decec1f6-4ccb-4158-938f-a90a8053646f"
     steps:
-      - name: Probar tokens
+      - name: Probar token como Project Token
         run: |
           API="https://backboard.railway.com/graphql/v2"
-
-          probe() { # $1 = nombre, $2 = token
-            echo "=============== $1 ==============="
-            if [ -z "$2" ]; then echo "(secret vacío o no existe)"; return; fi
-
-            echo "--- me:"
-            curl -sS -H "Authorization: Bearer $2" -H "Content-Type: application/json" \
-              -d '{"query":"{ me { name email } }"}' "$API"; echo
-
-            echo "--- proyectos visibles:"
-            curl -sS -H "Authorization: Bearer $2" -H "Content-Type: application/json" \
-              -d '{"query":"{ projects { edges { node { id name environments { edges { node { id name } } } services { edges { node { id name } } } } } } }"}' "$API"; echo
-
-            echo "--- project(PROJECT_ID):"
-            curl -sS -H "Authorization: Bearer $2" -H "Content-Type: application/json" \
-              -d "{\"query\":\"{ project(id: \\\"$PROJECT_ID\\\") { id name } }\"}" "$API"; echo
-          }
-
-          probe "RAILWAY_API_TOKEN" "$RAILWAY_API_TOKEN"
-          probe "RAILWAY_TOKEN" "$RAILWAY_TOKEN"
+          echo "Longitud del token: ${#RAILWAY_API_TOKEN}"
+          echo "--- Project-Access-Token:"
+          curl -sS -H "Project-Access-Token: $RAILWAY_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"query":"{ projectToken { projectId environmentId } }"}' "$API"
+          echo
