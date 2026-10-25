@@ -1,97 +1,36 @@
-name: Railway Nightly Schedule
+name: Railway Diagnostico
 
 on:
-  schedule:
-    # Miércoles 7:00 AM COT (12:00 UTC) - Encender Servicio
-    - cron: '3 12 * * 3'
-    # Miércoles 5:00 PM COT (22:00 UTC) - Apagar Servicio
-    - cron: '3 22 * * 3'
   workflow_dispatch:
-    inputs:
-      action:
-        description: 'Acción a ejecutar'
-        required: true
-        default: 'down'
-        type: choice
-        options:
-          - down
-          - redeploy
 
 jobs:
-  manage-service:
+  diag:
     runs-on: ubuntu-latest
     env:
       RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       PROJECT_ID: "decec1f6-4ccb-4158-938f-a90a8053646f"
-      SERVICE_ID: "ef6b5897-c616-48ee-be1f-f0d77d9c3e12"
-      ENV_ID: "59722f34-6a1f-4904-a008-cd7465552df5"
-      ACTION: ${{ github.event.schedule == '3 22 * * 3' && 'down' || (github.event.schedule == '3 12 * * 3' && 'redeploy' || github.event.inputs.action) }}
     steps:
-      - name: Ejecutar acción en Railway
+      - name: Probar tokens
         run: |
-          set -euo pipefail
           API="https://backboard.railway.com/graphql/v2"
 
-          call() { # $1 = header completo, $2 = body
-            curl -sS -H "$1" -H "Content-Type: application/json" -d "$2" "$API"
-          }
-          has_errors() { echo "$1" | jq -e '.errors != null' >/dev/null; }
+          probe() { # $1 = nombre, $2 = token
+            echo "=============== $1 ==============="
+            if [ -z "$2" ]; then echo "(secret vacío o no existe)"; return; fi
 
-          # --- Detectar qué token funciona ---
-          AUTH=""
-          R=$(call "Authorization: Bearer $RAILWAY_API_TOKEN" \
-            "$(jq -n --arg p "$PROJECT_ID" \
-              '{query:"query($id:String!){ project(id:$id){ id name } }",variables:{id:$p}}')")
-          if ! has_errors "$R"; then
-            AUTH="Authorization: Bearer $RAILWAY_API_TOKEN"
-            echo "Usando token de cuenta (RAILWAY_API_TOKEN)"
-          else
-            echo "RAILWAY_API_TOKEN no tiene acceso al proyecto: $R"
-            R=$(call "Project-Access-Token: $RAILWAY_TOKEN" \
-              '{"query":"{ projectToken { projectId environmentId } }"}')
-            if ! has_errors "$R"; then
-              AUTH="Project-Access-Token: $RAILWAY_TOKEN"
-              echo "Usando Project Token (RAILWAY_TOKEN)"
-            else
-              echo "RAILWAY_TOKEN tampoco funciona: $R"
-              echo "Crea un token de cuenta con 'No workspace' o un Project Token del entorno correcto."
-              exit 1
-            fi
-          fi
+            echo "--- me:"
+            curl -sS -H "Authorization: Bearer $2" -H "Content-Type: application/json" \
+              -d '{"query":"{ me { name email } }"}' "$API"; echo
 
-          api() { call "$AUTH" "$1"; }
-          check() {
-            if has_errors "$1"; then
-              echo "Error de la API: $1"
-              exit 1
-            fi
+            echo "--- proyectos visibles:"
+            curl -sS -H "Authorization: Bearer $2" -H "Content-Type: application/json" \
+              -d '{"query":"{ projects { edges { node { id name environments { edges { node { id name } } } services { edges { node { id name } } } } } } }"}' "$API"; echo
+
+            echo "--- project(PROJECT_ID):"
+            curl -sS -H "Authorization: Bearer $2" -H "Content-Type: application/json" \
+              -d "{\"query\":\"{ project(id: \\\"$PROJECT_ID\\\") { id name } }\"}" "$API"; echo
           }
 
-          echo "Acción: $ACTION"
-
-          if [ "$ACTION" = "down" ]; then
-            RESP=$(api "$(jq -n \
-              --arg p "$PROJECT_ID" --arg e "$ENV_ID" --arg s "$SERVICE_ID" \
-              '{query: "query($input: DeploymentListInput!) { deployments(first: 1, input: $input) { edges { node { id status } } } }",
-                variables: {input: {projectId: $p, environmentId: $e, serviceId: $s}}}')")
-            check "$RESP"
-            DEP_ID=$(echo "$RESP" | jq -r '.data.deployments.edges[0].node.id // empty')
-            STATUS=$(echo "$RESP" | jq -r '.data.deployments.edges[0].node.status // empty')
-            echo "Último despliegue: $DEP_ID (estado: $STATUS)"
-            if [ -z "$DEP_ID" ]; then
-              echo "No se encontró ningún despliegue"
-              exit 1
-            fi
-
-            RESP=$(api "$(jq -n --arg id "$DEP_ID" \
-              '{query: "mutation($id: String!) { deploymentStop(id: $id) }", variables: {id: $id}}')")
-            check "$RESP"
-            echo "Servicio apagado: $RESP"
-          else
-            RESP=$(api "$(jq -n --arg e "$ENV_ID" --arg s "$SERVICE_ID" \
-              '{query: "mutation($e: String!, $s: String!) { serviceInstanceRedeploy(environmentId: $e, serviceId: $s) }",
-                variables: {e: $e, s: $s}}')")
-            check "$RESP"
-            echo "Servicio encendido: $RESP"
-          fi
+          probe "RAILWAY_API_TOKEN" "$RAILWAY_API_TOKEN"
+          probe "RAILWAY_TOKEN" "$RAILWAY_TOKEN"
